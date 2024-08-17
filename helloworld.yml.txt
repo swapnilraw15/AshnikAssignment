@@ -1,0 +1,251 @@
+- name: Deploy Nginx Ingress Controller and Hello World application
+  hosts: localhost
+  tasks:
+    - name: Download Helm install script
+      get_url:
+       url: https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+       dest: /tmp/get-helm-3.sh
+       mode: '0755'
+
+    - name: Install Helm
+      shell: /tmp/get-helm-3.sh
+      args:
+       creates: /usr/local/bin/helm
+
+    - name: Add Nginx Ingress Helm repo
+      command: helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+      register: add_repo
+      changed_when: "'has been added' in add_repo.stdout"
+
+    - name: Update Helm repo
+      command: helm repo update
+      when: add_repo.changed
+
+    - name: Uninstall existing Nginx Ingress release if it exists
+      shell: helm uninstall nginx-ingress -n ingress-nginx
+      ignore_errors: yes
+
+    - name: Install Nginx Ingress controller
+      command: helm install nginx-ingress ingress-nginx/ingress-nginx --namespace ingress-nginx --create-namespace
+      register: helm_install_result
+      retries: 3
+      delay: 10
+      until: helm_install_result is succeeded
+      ignore_errors: yes
+      failed_when: "'already exists' not in helm_install_result.stderr and helm_install_result.rc != 0"
+
+    - name: Create Kubernetes manifest for Hello World application
+      copy:
+        dest: /tmp/hello-world.yaml
+        content: |
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: hello-world
+            labels:
+              app: hello-world
+          spec:
+            replicas: 1
+            selector:
+              matchLabels:
+                app: hello-world
+            template:
+              metadata:
+                labels:
+                  app: hello-world
+              spec:
+                containers:
+                - name: hello-world
+                  image: gcr.io/google-samples/hello-app:1.0
+                  ports:
+                  - containerPort: 8080
+          ---
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: hello-world
+          spec:
+            type: NodePort
+            selector:
+              app: hello-world
+            ports:
+              - protocol: TCP
+                port: 80
+                targetPort: 8080
+                nodePort: 30007
+          ---
+          apiVersion: networking.k8s.io/v1
+          kind: Ingress
+          metadata:
+            name: hello-world-ingress
+            annotations:
+              nginx.ingress.kubernetes.io/rewrite-target: /
+          spec:
+            rules:
+            - host: hello-world.local
+              http:
+                paths:
+                - path: /
+                  pathType: Prefix
+                  backend:
+                    service:
+                      name: hello-world
+                      port:
+                        number: 80
+
+    - name: Apply Kubernetes manifest
+      command: kubectl apply -f /tmp/hello-world.yaml
+      register: kubectl_apply_result
+      retries: 3
+      delay: 10
+      until: kubectl_apply_result is succeeded
+      ignore_errors: yes
+      failed_when: "kubectl_apply_result.rc != 0"
+
+    - name: Get the correct Nginx Ingress deployment name
+      shell: kubectl get deployments -n ingress-nginx -o jsonpath="{.items[0].metadata.name}"
+      register: ingress_deployment_name
+
+    - name: Ensure Nginx Ingress is running
+      command: kubectl rollout status deployment/nginx-ingress-ingress-nginx-controller -n ingress-nginx
+      retries: 5
+      delay: 15
+      register: rollout_status
+      until: rollout_status is succeeded
+
+    - name: Ensure Hello World deployment is running
+      command: kubectl rollout status deployment/hello-world
+      retries: 5
+      delay: 15
+      register: hello_world_rollout_status
+      until: hello_world_rollout_status is succeeded
+
+- name: Deploy Nginx Ingress and Sample Application with TLS
+  hosts: localhost
+  tasks:
+
+    - name: Install Helm if not installed
+      get_url:
+        url: https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+        dest: /tmp/get-helm-3.sh
+        mode: '0755'
+      when: ansible_local.helm.helm_version is not defined
+
+    - name: Install Helm
+      shell: /tmp/get-helm-3.sh
+      args:
+        creates: /usr/local/bin/helm
+
+    - name: Add the ingress-nginx Helm repo
+      shell: helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+      register: helm_repo_add
+      changed_when: "'already exists' not in helm_repo_add.stdout"
+
+    - name: Update Helm repo
+      shell: helm repo update
+      when: helm_repo_add.changed
+
+    - name: Uninstall existing Nginx Ingress release if it exists
+      shell: helm uninstall nginx-ingress -n ingress-nginx
+      ignore_errors: yes
+
+    - name: Install Nginx Ingress controller
+      command: helm install nginx-ingress ingress-nginx/ingress-nginx --namespace ingress-nginx --create-namespace
+      register: helm_install_result
+      retries: 3
+      delay: 10
+      until: helm_install_result is succeeded
+
+    - name: Generate self-signed TLS certificate
+      command: openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /tmp/tls.key -out /tmp/tls.crt -subj "/CN=example.com/O=example.com"
+      args:
+        creates: /tmp/tls.crt
+
+    - name: Create Kubernetes secret for TLS
+      command: kubectl create secret tls hello-world-tls --cert=/tmp/tls.crt --key=/tmp/tls.key -n default
+      ignore_errors: yes
+
+    - name: Ensure Nginx Ingress controller is running
+      command: kubectl rollout status deployment/nginx-ingress-ingress-nginx-controller -n ingress-nginx
+      retries: 5
+      delay: 15
+      register: rollout_status
+      until: rollout_status is succeeded
+
+    - name: Ensure Nginx Ingress webhook is running
+      command: kubectl rollout status deployment/nginx-ingress-ingress-nginx-admission -n ingress-nginx
+      retries: 5
+      delay: 15
+      register: webhook_status
+      until: webhook_status is succeeded
+
+    - name: Create Kubernetes manifest for Hello World application with TLS
+      copy:
+        dest: /tmp/hello-world-tls.yaml
+        content: |
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: hello-world
+            namespace: default
+          spec:
+            replicas: 1
+            selector:
+              matchLabels:
+                app: hello-world
+            template:
+              metadata:
+                labels:
+                  app: hello-world
+              spec:
+                containers:
+                - name: hello-world
+                  image: hashicorp/http-echo
+                  args:
+                  - "-text=Hello, World!"
+                  ports:
+                  - containerPort: 5678
+          ---
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: hello-world
+            namespace: default
+          spec:
+            selector:
+              app: hello-world
+            ports:
+            - protocol: TCP
+              port: 80
+              targetPort: 5678
+          ---
+          apiVersion: networking.k8s.io/v1
+          kind: Ingress
+          metadata:
+            name: hello-world-ingress
+            namespace: default
+            annotations:
+              nginx.ingress.kubernetes.io/rewrite-target: /
+          spec:
+            tls:
+            - hosts:
+              - example.com
+              secretName: hello-world-tls
+            rules:
+            - host: example.com
+              http:
+                paths:
+                - path: /
+                  pathType: Prefix
+                  backend:
+                    service:
+                      name: hello-world
+                      port:
+                        number: 80
+
+    - name: Apply Kubernetes manifest
+      command: kubectl apply -f /tmp/hello-world-tls.yaml
+      retries: 5
+      delay: 15
+      register: apply_result
+      until: apply_result is succeeded
