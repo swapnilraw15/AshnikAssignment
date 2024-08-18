@@ -1,4 +1,4 @@
-# Ansible Playbook: Deploy Nginx Ingress and Hello World Application on Kubernetes
+# Ansible Playbook: Deploy Nginx Ingress and "Hello World" Application on Kubernetes
 
 This Ansible playbook automates the deployment of an Nginx Ingress controller and a sample "Hello World" application on a Kubernetes cluster. The playbook also implements TLS termination using a self-signed certificate.
 
