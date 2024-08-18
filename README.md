@@ -32,6 +32,7 @@ This Ansible playbook automates the deployment of an Nginx Ingress controller an
    ```bash
    ansible-playbook deploy_k8s.yml
 This command will execute all the tasks in the playbook, deploying the Nginx Ingress controller and the "Hello World" application with TLS.
+
 5. **Access the application**
    Click on hamburger on right top and go to traffic/ports
    Access application using port 30007
