@@ -6,8 +6,6 @@ This Ansible playbook automates the deployment of an Nginx Ingress controller an
 - [Requirements](#requirements)
 - [Playbook Structure](#playbook-structure)
 - [Usage](#usage)
-- [Tasks Breakdown](#tasks-breakdown)
-- [Troubleshooting](#troubleshooting)
 
 ## Requirements
 - **Kubernetes Cluster:** Ensure you have a running Kubernetes cluster.
