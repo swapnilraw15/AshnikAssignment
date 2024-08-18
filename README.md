@@ -6,6 +6,7 @@ This Ansible playbook automates the deployment of an Nginx Ingress controller an
 - [Requirements](#requirements)
 - [Playbook Structure](#playbook-structure)
 - [Usage](#usage)
+- [Troubleshooting](#troubleshooting)
 
 ## Requirements
 - **Kubernetes Cluster:** Ensure you have a running Kubernetes cluster.
@@ -36,3 +37,12 @@ This command will execute all the tasks in the playbook, deploying the Nginx Ing
 5. **Access the application:**
    - Click on hamburger on right top and go to traffic/ports
    - Access application using port 30007
+  
+## Troubleshooting
+
+### Error: `cannot re-use a name that is still in use`
+   - This error occurs if a Helm release with the same name already exists. The playbook handles this by uninstalling the existing release before deploying a new one. If the problem persists, manually delete the Helm release using `helm delete <release-name>`.
+
+### Error: `dial tcp <IP>:443: connect: connection refused`
+   - This error typically indicates that the Nginx Ingress controller's admission webhook is not ready. The playbook includes retries for this step, but you may need to manually check the status of the Nginx Ingress controller using `kubectl get pods -n ingress-nginx` if the issue continues.
+
