@@ -20,7 +20,7 @@ This Ansible playbook automates the deployment of an Nginx Ingress controller an
 
 ## Usage
 
-1. Go to #https://killercoda.com/playgrounds/scenario/kubernetes [This will give empty k8s cluster for 60min]
+1. Go to https://killercoda.com/playgrounds/scenario/kubernetes [This will give empty k8s cluster for 60min]
 2. **Install Ansible**
    ```bash
    apt install ansible
