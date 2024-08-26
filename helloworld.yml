@@ -1,4 +1,4 @@
-- name: Deploy Nginx Ingress Controller and Hello World application
+- name: Deploy Nginx Ingress Controller & Hello World application
   hosts: localhost
   tasks:
     - name: Download Helm install script
