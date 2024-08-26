@@ -59,7 +59,7 @@ This Ansible playbook automates the deployment of an Nginx Ingress controller an
 This command will execute all the tasks in the playbook, deploying the Nginx Ingress controller and the "Hello World" application with TLS.
 
 9. **Access the application:**
-Go to local browser and run http://<minikube-ip>:30007
+Go to local browser and run `http://<minikube-ip>:30007`
    
 ## Troubleshooting
 
